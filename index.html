@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Molekuly kyslíku v plynu</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<style>
+body{margin:0;background:#0b0b0a;color:#F1EFE8;font-family:system-ui,"Segoe UI",sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh}
+.wrap{width:min(96vw,calc((100vh - 130px)*16/9))}
+canvas{width:100%;display:block;border-radius:12px;background:#141413}
+.row{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap;font-size:15px;color:#B4B2A9}
+button{background:transparent;color:#F1EFE8;border:1px solid #5F5E5A;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:14px}
+button:hover{background:#2C2C2A}
+input[type=range]{flex:1;min-width:140px;accent-color:#F0997B}
+input[type=checkbox]{accent-color:#F0997B}
+label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.val{color:#F1EFE8;font-weight:500;min-width:60px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<canvas id="c"></canvas>
+<div class="row">
+<span>Teplota</span>
+<input type="range" id="t" min="-150" max="400" step="1" value="20">
+<span id="to" class="val"></span>
+<button id="p"></button>
+<button id="fs" aria-label="Celá obrazovka"><i class="ti ti-maximize"></i></button>
+</div>
+<div class="row" style="justify-content:space-between">
+<label><input type="checkbox" id="tr" checked> Sledovat dráhu jedné molekuly</label>
+<span id="v"></span>
+</div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),W=680,H=383,N=26,R=14,dpr=window.devicePixelRatio||1;
+function fit(){const s=cv.clientWidth/W;cv.width=W*s*dpr;cv.height=H*s*dpr;cv.style.height=H*s+'px';ctx.setTransform(s*dpr,0,0,s*dpr,0,0)}
+fit();addEventListener('resize',fit);
+let T=293,run=true,trail=[];
+const base=()=>70*Math.sqrt(T/300),M=[];
+for(let i=0;i<N;i++){let x,y,ok;do{x=R+Math.random()*(W-2*R);y=R+Math.random()*(H-2*R);ok=M.every(m=>Math.hypot(m.x-x,m.y-y)>2.4*R)}while(!ok);
+const a=Math.random()*6.283,s=base()*(.5+Math.random());M.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,an:Math.random()*6.283,w:(Math.random()-.5)*6})}
+function step(dt){for(const m of M){m.x+=m.vx*dt;m.y+=m.vy*dt;m.an+=m.w*dt;
+if(m.x<R){m.x=R;m.vx=Math.abs(m.vx)}if(m.x>W-R){m.x=W-R;m.vx=-Math.abs(m.vx)}
+if(m.y<R){m.y=R;m.vy=Math.abs(m.vy)}if(m.y>H-R){m.y=H-R;m.vy=-Math.abs(m.vy)}}
+for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){const a=M[i],b=M[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
+if(d<2*R&&d>0){const nx=dx/d,ny=dy/d,rv=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+if(rv<0){a.vx+=rv*nx;a.vy+=rv*ny;b.vx-=rv*nx;b.vy-=rv*ny;const tw=a.w;a.w=b.w+(Math.random()-.5)*2;b.w=tw+(Math.random()-.5)*2}
+const o=(2*R-d)/2;a.x-=nx*o;a.y-=ny*o;b.x+=nx*o;b.y+=ny*o}}
+if(document.getElementById('tr').checked){trail.push([M[0].x,M[0].y]);if(trail.length>400)trail.shift()}else trail=[]}
+function atom(x,y,c1,c2,c3){ctx.beginPath();ctx.arc(x,y,7.5,0,6.283);ctx.fillStyle=c1;ctx.fill();ctx.lineWidth=.8;ctx.strokeStyle=c2;ctx.stroke();
+ctx.beginPath();ctx.arc(x-2.4,y-2.4,2.4,0,6.283);ctx.fillStyle=c3;ctx.fill()}
+function draw(){ctx.clearRect(0,0,W,H);
+if(trail.length>1){ctx.beginPath();ctx.moveTo(trail[0][0],trail[0][1]);for(const p of trail)ctx.lineTo(p[0],p[1]);ctx.strokeStyle='rgba(239,159,39,.55)';ctx.lineWidth=1.5;ctx.stroke()}
+M.forEach((m,i)=>{const t=i===0&&document.getElementById('tr').checked,dx=Math.cos(m.an)*5.5,dy=Math.sin(m.an)*5.5,
+c=t?['#EF9F27','#FAC775','#FAEEDA']:['#E24B4A','#F7C1C1','#FCEBEB'];atom(m.x-dx,m.y-dy,...c);atom(m.x+dx,m.y+dy,...c)});
+ctx.fillStyle='#F1EFE8';ctx.font='500 16px system-ui,sans-serif';ctx.fillText('Kyslík O₂ · plyn',16,28);
+ctx.fillStyle='#B4B2A9';ctx.font='12px system-ui,sans-serif';ctx.fillText('Každá dvojice kuliček = jedna molekula (2 atomy O)',16,46)}
+let last=performance.now();
+function loop(now){const dt=Math.min((now-last)/1000,.033);last=now;if(run)step(dt);draw();requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+const ts=document.getElementById('t'),pb=document.getElementById('p');
+function upd(){const nT=+ts.value+273,k=Math.sqrt(nT/T);M.forEach(m=>{m.vx*=k;m.vy*=k;m.w*=k});T=nT;
+document.getElementById('to').textContent=ts.value+' °C';
+document.getElementById('v').textContent='Průměrná rychlost molekul ≈ '+Math.round(Math.sqrt(3*8.314*T/0.032)).toLocaleString('cs')+' m/s'}
+ts.oninput=upd;upd();
+function lab(){pb.innerHTML=run?'<i class="ti ti-player-pause"></i> Pauza':'<i class="ti ti-player-play"></i> Spustit'}
+pb.onclick=()=>{run=!run;lab()};lab();
+document.getElementById('fs').onclick=()=>{document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen()};
+document.addEventListener('keydown',e=>{if(e.key===' '){e.preventDefault();pb.click()}else if(e.key==='f')document.getElementById('fs').click()});
+</script>
+</body>
+</html>
